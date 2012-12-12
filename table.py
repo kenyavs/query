@@ -35,6 +35,28 @@ class Table(object):
 		for idx, val in enumerate(args):
 			val.id = idx 
 
+	def __getitem__(self, columns):
+		#QUESTION: is it a bad thing that i'm resetting the value for columns here...or at all? this is the case for when selecting certain columns is desired.
+		#resetting columns on table to correspond with the columns that were selected in select statement
+		c = []
+		
+		for column in self.columns:
+			try:
+				column.id = list(columns).index(column.name)
+				c.append(column)
+			except:
+				pass #print "will it keep going?"
+
+		self.columns = tuple(c)	
+
+		return columns
+
+		"""self.c = Columns() <---QUESTION: should i do something like this and then in the "Columns" class define a "__getitem__ method"
+		plus in the __init__ method do the for loop below and also assign args to self.columns. would it be ridiculous to access columns
+		something like self.columns.columns or self.c.columns? Also, is there any way to perform a __getitem__ on a list that doesn't
+		belong to a class?
+		"""
+
 	def create(self):
 		primary_key = ""
 		columns =""
@@ -84,7 +106,6 @@ class Table(object):
 				values.append(val)
 
 			sql = "insert into "+self.name+"("+','.join(columns)+") values ("+','.join(values)+");"
-			print sql
 
 			cursor = self.dbh.cursor
 			try:
@@ -93,69 +114,107 @@ class Table(object):
 			except:
 				self.dbh.connection.rollback()
 
-			#self.dbh.connection.close()
 
-	def single_row(self):
+	def fetchone(self):
+
 		results =""
 
-		sql = "select * from "+self.name+";"
+		"""sql = "select * from "+self.name+";"""
 
 		cursor = self.dbh.cursor
 
 		try:
-			cursor.execute(sql)
+			#cursor.execute(sql)
 			results = Results(cursor.fetchone(), self.columns)
 		except:
 			self.dbh.connection.rollback()
 
-		self.dbh.connection.close()
-
 		return results
 
-	def all_rows(self):
-		results =""
+	def fetch(self):
 
-		sql = "select * from "+self.name+";"
+		results = ""
+		result_objects = []
+
+		#sql = "select * from "+self.name+";"
 
 		cursor = self.dbh.cursor
 
 		try:
-			cursor.execute(sql)
-			results = Results(cursor.fetchall(), self.columns)
+			#cursor.execute(sql)
+			results = cursor.fetchall()
+
+			for result in results:
+				result_object = Results(result, self.columns)
+				result_objects.append(result_object)
+
 		except:
 			self.dbh.connection.rollback()
 
-		self.dbh.connection.close()
-
-		return results
-
-class Results(object):
-	def __init__(self, result, columns):
-		print result
-		self.result = result
-		mapper={}
-
-		#QUESTION: is it better to have a counter property on the "Column" object than to loop through the columns each time a "Results" object is created in order to make establish a index connection?
 		
-		#map the name of each column with its corresponding index i.e. {'user_id':0, 'name':1, 'age':2, 'password':3}
-		#for idx, column in enumerate(columns):
-		#	mapper[column.name] = idx
+		return tuple(result_objects)
 
-		self.mapper = mapper
-
-	
-	def __getitem__(self, x):
-		if isinstance(x, str): #TODO: apparently it's more pythonic to do a try catch than to use isinstance
-			return self.result[self.mapper[x]]
+	"""def select(self, *args):		
+		if len(args)>0:
+			print "args > 0"
 		else:
-			return self.result[x]
+			#no arguments passed, fetch all
+			return self.select_all()"""
+
+	def select(self, *args):
+		if len(args) > 0: #i think this should be equal to one i.e. no where clause
+			columns = []
+			
+			#for column in args:
+			#	columns.append(column)  
+
+			sql = "select "+','.join(args[0])+" from "+self.name+";"
+
+		else:
+			sql = "select * from "+self.name+";"
+ 
+		cursor = self.dbh.cursor
+
+		try:
+			cursor.execute(sql)
+		except:
+			self.dbh.connection.rollback()
 
 class Column(object):
 	def __init__(self, name, data_type, primary_key=False):
 		self.type = data_type.val
 		self.name = name
 		self.primary_key = primary_key
-		#i think that i want(should) to add some sort of counter here in order to have the ability to associated each column by index later
+
+"""class Columns(object):
+	def __init__(self, *args):
+		self.args = args
+
+	def __getitem__(self, x):
+		print x"""
+
+
+class Results(object):
+	def __init__(self, result, columns):
+		self.result = result
+		self.columns = columns
+
+	def __getitem__(self, x):
+
+		try:
+			if isinstance(x, str): #TODO: apparently it's more pythonic to do a try catch than to use isinstance :/
+				col_id = self.getColumnIdFor(x)
+				return self.result[col_id]
+			else:
+				return self.result[x]
+		except:
+			return None
+
+	def getColumnIdFor(self, val):
+		for column in self.columns:
+			if column.name == val:
+				return column.id
+
 
 class Integer(object):
 	def __init__(self):
@@ -174,25 +233,51 @@ users = Table('users', dbh,
     Column('password', String(200))
 )
 
-users.create()
+#users.create()
 #users.insert(name='Mary', age='30', password='secret')
 #users.insert({'name': 'Mary', 'age':22, 'password':'guessit'})
-users.insert(	{'name': 'Mary', 'age':22, 'password':'guessit'},
+"""users.insert(	{'name': 'Mary', 'age':22, 'password':'guessit'},
 				{'name': 'Susan', 'age': 57},
-          		{'name': 'Carl', 'age': 33})
+          		{'name': 'Carl', 'age': 33})"""
 
-#row = users.single_row() 
-#rows = users.all_rows()
+users.select(users["name", "age"])
+row = users.fetchone()
+print row[1]
 
-#for r in rows:
-#	print r[1]
+"""row = users.fetchone()
+print row["name"]"""
 
-"""for r in row:
-	print r["name"]
-#s = users.select()
-#rs = s.execute()
+"""users.select(users["name", "age"])
+rows = users.fetch()
 
-print 'Id:', row['user_id']
-print 'Name:', row['name']
-print 'Age:', row['age']
-print 'Password:', row['password']"""
+for r in rows:
+    print r["name"], 'is', r["age"], 'years old'"""
+
+
+"""TODO:
+-maybe add functionality that echoes the sql being executed
+db.echo = True  # We want to see the SQL we're creating
+-maybe add functionality that autoload table if it already exists 
+basic:
+-where
+-and/or
+-order by
+-update?
+-delete?
+
+advanced:
+-in
+-join
+-innerjoin
+-leftjoin
+-rightjoin
+-fulljoin
+
+functions:
+-groupby
+-count
+-sum
+"""
+
+
+
