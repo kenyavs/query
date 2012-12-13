@@ -27,54 +27,31 @@ class Connection(object):
 
 
 class Table(object):
-    def __init__(self, name, dbh, *args):
+    def __init__(self, name, dbh, *columns):
         self.name = name
         self.dbh = dbh
-        self.columns = args
+        self.columns = columns
 
-        for idx, val in enumerate(args):
+        for idx, val in enumerate(columns):
             val.id = idx 
 
     def __getitem__(self, columns):
-        #QUESTION: is it a bad thing that i'm resetting the value for columns here...or at all? this is the case for when selecting certain columns is desired.
-        #resetting columns on table to correspond with the columns that were selected in select statement
-        c = []
-        
-        for column in self.columns:
-            try:
-                column.id = list(columns).index(column.name)
-                c.append(column)
-            except:
-                pass #print "will it keep going?"
-
-        self.columns = tuple(c) 
-
         return columns
-
-        """self.c = Columns() <---QUESTION: should i do something like this and then in the "Columns" class define a "__getitem__ method"
-        plus in the __init__ method do the for loop below and also assign args to self.columns. would it be ridiculous to access columns
-        something like self.columns.columns or self.c.columns? Also, is there any way to perform a __getitem__ on a list that doesn't
-        belong to a class?
-        """
 
     def create(self):
         primary_key = ""
         columns =""
         comma = ""
 
-        for idx, arg in enumerate(self.columns):
+        for idx, column in enumerate(self.columns):
             if idx!=0:
                 comma = ", "
 
             if(arg.primary_key):
-                #primary_key =" primary key, "
-                columns += comma+arg.name+" "+arg.type+" primary key auto_increment" #TODO: be careful with this auto_increment, don't assume that that's what's wanted
+                columns += comma+column.name+" "+column.type+" primary key auto_increment" #TODO: be careful with this auto_increment, don't assume that that's what's wanted
             else:
-                #primary_key =", "
-                columns += comma+arg.name+" "+arg.type
+                columns += comma+column.name+" "+column.type
                 
-            #columns += arg.name+" "+arg.type+primary_key
-
         sql = "create table "+self.name+"("+columns+");"
         
         # prepare a cursor object using cursor() method
@@ -88,15 +65,14 @@ class Table(object):
         #self.dbh.connection.close()
 
 
-    def insert(self, *args):
+    def insert(self, *cols):
 
-        for arg in args:
+        for col in cols:
             columns=[]
             values=[]
             sql=""
             
-            #if isinstance(arg, dict): #multiple inserts TODO: remove this line. there will be only one way to insert into table
-            for key, val in arg.items():
+            for key, val in col.items():
                 if isinstance(val, str):
                     val = "'"+val+"'" #in sql, string values must be wrapped in quotes
                 else:
@@ -119,59 +95,71 @@ class Table(object):
 
         results =""
 
-        """sql = "select * from "+self.name+";"""
-
         cursor = self.dbh.cursor
 
         try:
-            #cursor.execute(sql)
-            results = Results(cursor.fetchone(), self.columns)
+            results = Results(cursor.fetchone(), self.fetch_columns)
         except:
             self.dbh.connection.rollback()
 
         return results
 
     def fetch(self):
-
         results = ""
         result_objects = []
-
-        #sql = "select * from "+self.name+";"
 
         cursor = self.dbh.cursor
 
         try:
-            #cursor.execute(sql)
             results = cursor.fetchall()
 
             for result in results:
-                result_object = Results(result, self.columns)
+                result_object = Results(result, self.fetch_columns)
                 result_objects.append(result_object)
-
         except:
             self.dbh.connection.rollback()
 
-        
         return tuple(result_objects)
 
-    """def select(self, *args):     
-        if len(args)>0:
-            print "args > 0"
-        else:
-            #no arguments passed, fetch all
-            return self.select_all()"""
+    def delete(self, *args):
+        if len(args) > 1:
+            sql = "delete from "+self.name+" where "+args[0]+" = "+"'"+args[1]+"';"
+        elif len(args) == 0:
+            sql = "delete from "+self.name+";"
 
-    def select(self, *args):
-        if len(args) > 0: #i think this should be equal to one i.e. no where clause
-            columns = []
-            
-            #for column in args:
-            #   columns.append(column)  
+        cursor = self.dbh.cursor
 
-            sql = "select "+','.join(args[0])+" from "+self.name+";"
+        try:
+            cursor.execute(sql)
+            self.dbh.connection.commit()
+        except:
+            self.dbh.connection.rollback() 
 
+
+    def select(self, *clauses):
+        if len(clauses) == 1:
+            if isinstance(clauses[0], list): #is a list and therefore has a where clause
+                sql = "select * from "+self.name+" where "+clauses[0][0]+" = '"+clauses[0][1]+"';"
+                self.fetch_columns = self.columns
+            else: #is not a list and therefore are columns
+                if isinstance(clauses[0], tuple):
+                    sql = "select "+','.join(clauses[0])+" from "+self.name+";"
+                    self.assignFetchColumns(clauses[0])
+                else:
+                    sql = "select "+clauses[0]+" from "+self.name+";"
+                    self.assignFetchColumns(clauses[0])
+        elif len(clauses) == 2:
+            if isinstance(clauses[0], tuple): #multiple columns
+                sql = "select "+','.join(clauses[0])+" from "+self.name+" where "+clauses[1][0]+" = '"+clauses[1][1]+"';"
+                self.assignFetchColumns(clauses[0])
+            else:
+                sql = "select "+clauses[0]+" from "+self.name+" where "+clauses[1][0]+" = '"+clauses[1][1]+"';"
+                self.assignFetchColumns(clauses[0])
         else:
             sql = "select * from "+self.name+";"
+            print sql
+            self.fetch_columns = self.columns
+            print self.columns
  
         cursor = self.dbh.cursor
 
@@ -180,18 +168,28 @@ class Table(object):
         except:
             self.dbh.connection.rollback()
 
+    def assignFetchColumns(self, fetch_columns):        
+        c = []
+
+        for column in self.columns:
+            try:
+                if isinstance(fetch_columns, tuple):
+                    column.id = list(fetch_columns).index(column.name)#get the index of the current column's name
+                else: #not a list...a singular value and therefore first index, 0
+                    if fetch_columns == column.name:
+                        column.id = 0
+
+                c.append(column)
+            except:
+                pass
+
+        self.fetch_columns = tuple(c)
+
 class Column(object):
     def __init__(self, name, data_type, primary_key=False):
         self.type = data_type.val
         self.name = name
         self.primary_key = primary_key
-
-"""class Columns(object):
-    def __init__(self, *args):
-        self.args = args
-
-    def __getitem__(self, x):
-        print x"""
 
 
 class Results(object):
@@ -200,7 +198,6 @@ class Results(object):
         self.columns = columns
 
     def __getitem__(self, x):
-
         try:
             if isinstance(x, str): #TODO: apparently it's more pythonic to do a try catch than to use isinstance :/
                 col_id = self.getColumnIdFor(x)
@@ -211,6 +208,7 @@ class Results(object):
             return None
 
     def getColumnIdFor(self, val):
+        #iterate through columns. if the column name equals the string/name passed in, return the column's id value
         for column in self.columns:
             if column.name == val:
                 return column.id
@@ -240,20 +238,41 @@ users = Table('users', dbh,
                 {'name': 'Susan', 'age': 57},
                 {'name': 'Carl', 'age': 33})"""
 
-users.select(users["name", "age"])
+"""users.select(users["name", "age"])
 row = users.fetchone()
-print row[1]
+print row[1]"""
 
 """row = users.fetchone()
 print row["name"]"""
 
-"""users.select(users["name", "age"])
+users.select() #, [users['name'], 'Susan']
 rows = users.fetch()
 
 for r in rows:
-    print r["name"], 'is', r["age"], 'years old'"""
+    print r[0], r["name"], r[2], r[3]
 
 
+#users.delete()
+
+
+
+
+""" TODO: be sure to jot down each type of where statement that I'd like to implement
+        select * from users where name = 'Kenya' and password = 'guessit' ???
+        .
+        .
+        .
+        users.select(users['name', 'age']) -->select name, age from users  +
+        users.select(users['name', 'user_id'], [users['name'], 'Kenya'])-->select name, user_id from users where name = 'Kenya' +
+        users.select(users['password']) -->select password from users  +
+        users.select(users['age'], [users['password'], 'nopassword']) -->select age from users where password = 'nopassword'+
+        users.select(users['name'], [users['name'],'Jane']) -->select name from users where name = 'Jane'+
+        users.select(users['name']) -->select name from users +
+        users.select([users['name'], [users['name'],'Jane']) -->select * from users where name = 'Jane'
+        users.select()
+    """
+
+    users.select(('name', 'age'))
 """TODO:
 -maybe add functionality that echoes the sql being executed
 db.echo = True  # We want to see the SQL we're creating
