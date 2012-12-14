@@ -1,17 +1,12 @@
 #!/usr/bin/python
 
 import MySQLdb
-"""db.echo = False  # Try changing this to True and see what happens
-
-metadata = BoundMetaData(db)"""
 
 class Connection(object):
     def __init__(self, dsn, user, password):
         self.dsn = dsn
         self.user = user
         self.password = password
-
-        #QUESTION: can the stuff below be much cleaner?
 
         #dsn ==> mysql:dbname=testdb;host=localhost
 
@@ -61,9 +56,6 @@ class Table(object):
         except:
             self.dbh.connection.rollback()
 
-        # disconnect from server
-        #self.dbh.connection.close()
-
 
     def insert(self, *cols):
 
@@ -74,7 +66,7 @@ class Table(object):
             
             for key, val in col.items():
                 if isinstance(val, str):
-                    val = "'"+val+"'" #in sql, string values must be wrapped in quotes
+                    val = "'"+val+"'"
                 else:
                     val = str(val)
 
@@ -232,47 +224,39 @@ users = Table('users', dbh,
 )
 
 #users.create()
-#users.insert(name='Mary', age='30', password='secret')
 #users.insert({'name': 'Mary', 'age':22, 'password':'guessit'})
-"""users.insert(    {'name': 'Mary', 'age':22, 'password':'guessit'},
+"""users.insert({'name': 'Mary', 'age':22, 'password':'guessit'},
                 {'name': 'Susan', 'age': 57},
                 {'name': 'Carl', 'age': 33})"""
 
-"""users.select(users["name", "age"])
-row = users.fetchone()
-print row[1]"""
 
 """row = users.fetchone()
 print row["name"]"""
 
-users.select() #, [users['name'], 'Susan']
+#users.delete()
+
+users.select()
 rows = users.fetch()
 
 for r in rows:
     print r[0], r["name"], r[2], r[3]
 
 
-#users.delete()
-
-
-
-
 """ TODO: be sure to jot down each type of where statement that I'd like to implement
-        select * from users where name = 'Kenya' and password = 'guessit' ???
-        .
-        .
-        .
-        users.select(users['name', 'age']) -->select name, age from users  +
-        users.select(users['name', 'user_id'], [users['name'], 'Kenya'])-->select name, user_id from users where name = 'Kenya' +
-        users.select(users['password']) -->select password from users  +
-        users.select(users['age'], [users['password'], 'nopassword']) -->select age from users where password = 'nopassword'+
-        users.select(users['name'], [users['name'],'Jane']) -->select name from users where name = 'Jane'+
-        users.select(users['name']) -->select name from users +
-        users.select([users['name'], [users['name'],'Jane']) -->select * from users where name = 'Jane'
-        users.select()
-    """
+select * from users where name = 'Kenya' and password = 'guessit' ???
+.
+.
+.
+users.select(users['name', 'age']) -->select name, age from users  +
+users.select(users['name', 'user_id'], [users['name'], 'Kenya'])-->select name, user_id from users where name = 'Kenya' +
+users.select(users['password']) -->select password from users  +
+users.select(users['age'], [users['password'], 'nopassword']) -->select age from users where password = 'nopassword'+
+users.select(users['name'], [users['name'],'Jane']) -->select name from users where name = 'Jane'+
+users.select(users['name']) -->select name from users +
+users.select([users['name'], [users['name'],'Jane']) -->select * from users where name = 'Jane'
+users.select()
+"""
 
-    users.select(('name', 'age'))
 """TODO:
 -maybe add functionality that echoes the sql being executed
 db.echo = True  # We want to see the SQL we're creating
