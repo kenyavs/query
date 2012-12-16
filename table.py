@@ -294,12 +294,7 @@ class Query(object):
             try:
                 value = getattr(data_class_instance, column.name)
                 next_state[column.name] = value
-                
-                if isinstance(value, str):
-                    value = "'"+value+"'"
-                else:
-                    value = str(value)
-
+                value = self.formatValue(value)
                 columns.append(column.name)
                 values.append(value)
             except:
@@ -320,29 +315,17 @@ class Query(object):
         updates = []
         next_state = {}
 
-        #TODO: turn the following for loops into a function.
         for column in table.columns:
-            #value = getattr(self.data_class, column.name)
-            value = getattr(data_class_instance, column.name)
-            print value
-            
+            value = getattr(data_class_instance, column.name)            
             next_state[column.name] = value
-            if isinstance(value, str):
-                value = "'"+value+"'"
-            else:
-                value = str(value)
-
+            value = self.formatValue(value)
             updates.append(column.name+"="+value)
+
         current_state = data_class_instance.current_state
-        
         where_clauses = []
 
         for column in current_state:
-            if isinstance(current_state[column], str):
-                value = "'"+current_state[column]+"'"
-            else:
-                value = str(current_state[column])
-
+            value = self.formatValue(current_state[column])
             where_clauses.append(column+"="+value)
 
         sql = "update "+table.name+" set "+','.join(updates)+" where "+' and '.join(where_clauses)+";"
@@ -356,6 +339,14 @@ class Query(object):
         except:
             table.dbh.connection.rollback()
 
+    def formatValue(self, value):
+        if isinstance(value, str):
+            value = "'"+value+"'"
+        else:
+            value = str(value)
+
+        return value
+
 class Mapper(object):
     def __init__(self, data_class, table):
         data_class.table = table
@@ -363,8 +354,6 @@ class Mapper(object):
 
 class User(object):
     pass
-
-
 
 dbh = Connection("mysql:dbname=testdb;host=localhost", "root", "mysql1")
 
@@ -415,6 +404,18 @@ print fred.password
 query.save(fred)
 
 
-mary.password = 'ambiguous'
+mary.password = 'guessit'
 query.save(mary)
 
+"""TODO:
+-do existing TODO's
+-see if passing in no value into save() is fairly easy to implement
+-does it make sense to limit one or fetchone
+-how would fetching all results work?
+-general clean up and commenting
+-look into one to many
+-look into many to many
+-look into join
+-look into including other SQL drivers
+-brainstorm on next project, possibly using orm
+""" 
