@@ -231,6 +231,7 @@ class Query(object):
     def fetchone(self, *clauses):
         table = self.data_class.table
        
+        #TODO: add fetch_columns to self.data_class vs self
         if len(clauses) == 1:
             if isinstance(clauses[0], list): #is a list and therefore has a where clause
                 sql = "select * from "+table.name+" where "+clauses[0][0]+" = '"+clauses[0][1]+"';"
@@ -258,41 +259,102 @@ class Query(object):
         try:
             cursor.execute(sql)
             result = cursor.fetchone()
+            current_state = {} #preserve the original state for updates
+
+            #create new data_class object
+            instance = self.data_class()
 
             for idx, column in enumerate(self.fetch_columns):
-                setattr(self.data_class, column.name, result[idx])
+                #setattr(self.data_class, column.name, result[idx])
+                setattr(instance, column.name, result[idx])
+                current_state[column.name] = result[idx]
 
+            #self.data_class.current_state = current_state
+            instance.current_state = current_state
         except:
             table.dbh.connection.rollback()
 
-        return self.data_class
+        return instance#self.data_class
 
 
     def save(self, data_class_instance=''):
+        try:
+            getattr(data_class_instance, "current_state")
+            self.update(data_class_instance)
+        except:
+            self.insert(data_class_instance)
+
+    def insert(self, data_class_instance):
         table = self.data_class.table
-        updates = []
+        values = []
+        columns = []
+        next_state = {}
 
         for column in table.columns:
-            value = getattr(self.data_class, column.name)
-            print value
-            if isinstance(value, str):
-                value = "'"+value+"'"
-            else:
-                value = str(value)
-            
-            updates.append(column.name+"="+value)
+            try:
+                value = getattr(data_class_instance, column.name)
+                next_state[column.name] = value
+                
+                if isinstance(value, str):
+                    value = "'"+value+"'"
+                else:
+                    value = str(value)
 
-        #TODO: find a way to access the primary key/id of the fields/rows being updated
-        #sql = "update "+table.name+" set "+','.join(updates)+" where "+self.data_class.id+" = "+str(self.data_class.user_id)+";"
-        sql = "update "+table.name+" set "+','.join(updates)+" where user_id = "+str(self.data_class.user_id)+";"
+                columns.append(column.name)
+                values.append(value)
+            except:
+                pass #no such property defined yet
+
+        sql = "insert into "+table.name+"("+','.join(columns)+") values("+','.join(values)+");"
 
         cursor = table.dbh.cursor
         try:
             cursor.execute(sql)
             table.dbh.connection.commit()
+            data_class_instance.current_state = next_state
         except:
             table.dbh.connection.rollback()
 
+    def update(self, data_class_instance):
+        table = self.data_class.table
+        updates = []
+        next_state = {}
+
+        #TODO: turn the following for loops into a function.
+        for column in table.columns:
+            #value = getattr(self.data_class, column.name)
+            value = getattr(data_class_instance, column.name)
+            print value
+            
+            next_state[column.name] = value
+            if isinstance(value, str):
+                value = "'"+value+"'"
+            else:
+                value = str(value)
+
+            updates.append(column.name+"="+value)
+        current_state = data_class_instance.current_state
+        
+        where_clauses = []
+
+        for column in current_state:
+            if isinstance(current_state[column], str):
+                value = "'"+current_state[column]+"'"
+            else:
+                value = str(current_state[column])
+
+            where_clauses.append(column+"="+value)
+
+        sql = "update "+table.name+" set "+','.join(updates)+" where "+' and '.join(where_clauses)+";"
+        print sql
+
+        cursor = table.dbh.cursor
+        try:
+            cursor.execute(sql)
+            table.dbh.connection.commit()
+            data_class_instance.current_state = next_state
+        except:
+            table.dbh.connection.rollback()
 
 class Mapper(object):
     def __init__(self, data_class, table):
@@ -338,19 +400,21 @@ Mapper(User, users)
 query = Query(User)
 
 mary = query.fetchone([users['name'], 'Mary'])
-
 mary.age = mary.age+1
-#print mary.age
 
-query.save()
+print mary.age
 
-"""fred = User()
+query.save(mary)
+
+fred = User()
 fred.name = "Fred"
 fred.age = 57
 fred.password = 'password'
 
-query.save(fred)"""
+print fred.password
+query.save(fred)
 
-#mary is a User object and the User class represents a database row.
 
+mary.password = 'ambiguous'
+query.save(mary)
 
