@@ -20,7 +20,6 @@ class Connection(object):
         self.connection = MySQLdb.connect(hostname,user,password,dbname)
         self.cursor = self.connection.cursor()
 
-
 class Table(object):
     def __init__(self, name, dbh, *columns):
         self.name = name
@@ -30,8 +29,10 @@ class Table(object):
         for idx, val in enumerate(columns):
             val.id = idx 
 
+
     def __getitem__(self, columns):
         return columns
+
 
     def create(self):
         primary_key = ""
@@ -96,6 +97,7 @@ class Table(object):
 
         return results
 
+
     def fetch(self):
         results = ""
         result_objects = []
@@ -112,6 +114,7 @@ class Table(object):
             self.dbh.connection.rollback()
 
         return tuple(result_objects)
+
 
     def delete(self, *args):
         if len(args) > 1:
@@ -160,6 +163,7 @@ class Table(object):
         except:
             self.dbh.connection.rollback()
 
+
     def assignFetchColumns(self, fetch_columns):        
         c = []
 
@@ -177,6 +181,7 @@ class Table(object):
 
         self.fetch_columns = tuple(c)
 
+
 class Column(object):
     def __init__(self, name, data_type, primary_key=False):
         self.type = data_type.val
@@ -189,6 +194,7 @@ class Results(object):
         self.result = result
         self.columns = columns
 
+
     def __getitem__(self, x):
         try:
             if isinstance(x, str): #TODO: apparently it's more pythonic to do a try catch than to use isinstance :/
@@ -198,6 +204,7 @@ class Results(object):
                 return self.result[x]
         except:
             return None
+
 
     def getColumnIdFor(self, val):
         #iterate through columns. if the column name equals the string/name passed in, return the column's id value
@@ -210,9 +217,92 @@ class Integer(object):
     def __init__(self):
         self.val = "int"
 
+
 class String(object):
     def __init__(self, val=''):
         self.val = "varchar("+str(val)+")"
+
+
+class Query(object):
+    def __init__(self, data_class):
+        self.data_class = data_class
+
+
+    def fetchone(self, *clauses):
+        table = self.data_class.table
+       
+        if len(clauses) == 1:
+            if isinstance(clauses[0], list): #is a list and therefore has a where clause
+                sql = "select * from "+table.name+" where "+clauses[0][0]+" = '"+clauses[0][1]+"';"
+                self.fetch_columns = table.columns
+            else: #is not a list and therefore are columns
+                if isinstance(clauses[0], tuple):
+                    sql = "select "+','.join(clauses[0])+" from "+table.name+";"
+                    self.fetch_columns = clauses[0]
+                else:
+                    sql = "select "+clauses[0]+" from "+table.name+";"
+                    self.fetch_columns = clauses[0]
+        elif len(clauses) == 2:
+            if isinstance(clauses[0], tuple): #multiple columns
+                sql = "select "+','.join(clauses[0])+" from "+table.name+" where "+clauses[1][0]+" = '"+clauses[1][1]+"';"
+                self.fetch_columns = clauses[0]
+            else:
+                sql = "select "+clauses[0]+" from "+table.name+" where "+clauses[1][0]+" = '"+clauses[1][1]+"';"
+                self.fetch_columns = clauses[0]
+        else:
+            sql = "select * from "+table.name+";"
+            self.fetch_columns = table.columns
+ 
+        cursor = table.dbh.cursor
+
+        try:
+            cursor.execute(sql)
+            result = cursor.fetchone()
+
+            for idx, column in enumerate(self.fetch_columns):
+                setattr(self.data_class, column.name, result[idx])
+
+        except:
+            table.dbh.connection.rollback()
+
+        return self.data_class
+
+
+    def save(self, data_class_instance=''):
+        table = self.data_class.table
+        updates = []
+
+        for column in table.columns:
+            value = getattr(self.data_class, column.name)
+            print value
+            if isinstance(value, str):
+                value = "'"+value+"'"
+            else:
+                value = str(value)
+            
+            updates.append(column.name+"="+value)
+
+        #TODO: find a way to access the primary key/id of the fields/rows being updated
+        #sql = "update "+table.name+" set "+','.join(updates)+" where "+self.data_class.id+" = "+str(self.data_class.user_id)+";"
+        sql = "update "+table.name+" set "+','.join(updates)+" where user_id = "+str(self.data_class.user_id)+";"
+
+        cursor = table.dbh.cursor
+        try:
+            cursor.execute(sql)
+            table.dbh.connection.commit()
+        except:
+            table.dbh.connection.rollback()
+
+
+class Mapper(object):
+    def __init__(self, data_class, table):
+        data_class.table = table
+
+
+class User(object):
+    pass
+
+
 
 dbh = Connection("mysql:dbname=testdb;host=localhost", "root", "mysql1")
 
@@ -229,58 +319,38 @@ users = Table('users', dbh,
                 {'name': 'Susan', 'age': 57},
                 {'name': 'Carl', 'age': 33})"""
 
-
-"""row = users.fetchone()
-print row["name"]"""
-
 #users.delete()
 
-users.select()
+"""users.select()
 rows = users.fetch()
 
 for r in rows:
-    print r[0], r["name"], r[2], r[3]
+    print r[0], r["name"], r[2], r[3]"""
+
+"""users.select([users['name'], 'Mary'])
+row = users.fetchone()
+
+print row
+print row['user_id'], row['name'], row['age'], row['password']"""
 
 
-""" TODO: be sure to jot down each type of where statement that I'd like to implement
-select * from users where name = 'Kenya' and password = 'guessit' ???
-.
-.
-.
-users.select(users['name', 'age']) -->select name, age from users  +
-users.select(users['name', 'user_id'], [users['name'], 'Kenya'])-->select name, user_id from users where name = 'Kenya' +
-users.select(users['password']) -->select password from users  +
-users.select(users['age'], [users['password'], 'nopassword']) -->select age from users where password = 'nopassword'+
-users.select(users['name'], [users['name'],'Jane']) -->select name from users where name = 'Jane'+
-users.select(users['name']) -->select name from users +
-users.select([users['name'], [users['name'],'Jane']) -->select * from users where name = 'Jane'
-users.select()
-"""
+Mapper(User, users)
+query = Query(User)
 
-"""TODO:
--maybe add functionality that echoes the sql being executed
-db.echo = True  # We want to see the SQL we're creating
--maybe add functionality that autoload table if it already exists 
-basic:
--where
--and/or
--order by
--update?
--delete?
+mary = query.fetchone([users['name'], 'Mary'])
 
-advanced:
--in
--join
--innerjoin
--leftjoin
--rightjoin
--fulljoin
+mary.age = mary.age+1
+#print mary.age
 
-functions:
--groupby
--count
--sum
-"""
+query.save()
 
+"""fred = User()
+fred.name = "Fred"
+fred.age = 57
+fred.password = 'password'
+
+query.save(fred)"""
+
+#mary is a User object and the User class represents a database row.
 
 
