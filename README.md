@@ -5,7 +5,7 @@ An SQL rendering engine...moving towards automated persistance of Python objects
 
 SQL rendering engine:
 
-```dbh = Connection("mysql:dbname=yourdatabasename;host=localhost", "yourusername", "yourpassword")
+`dbh = Connection("mysql:dbname=yourdatabasename;host=localhost", "yourusername", "yourpassword")
 
 users = Table('users', dbh,
     Column('user_id', Integer(), primary_key=True),
@@ -39,4 +39,4 @@ query = Query(User)
 
 mary = query.fetchone([users['name'], 'Mary'])
 mary.age = mary.age+1
-query.save(mary)```
+query.save(mary)`
