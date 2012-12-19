@@ -1,5 +1,5 @@
 <h2>Query</h2>
-
+An SQL rendering engine...moving towards automated persistance of Python objects.
 
 <h2>Example Usage</h2>
 
