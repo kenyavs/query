@@ -5,16 +5,16 @@ An SQL rendering engine...moving towards automated persistance of Python objects
 
 SQL rendering engine:
 
-<code>dbh = Connection("mysql:dbname=yourdatabasename;host=localhost", "yourusername", "yourpassword")
+<code>dbh = Connection("mysql:dbname=yourdatabasename;host=localhost", "yourusername", "yourpassword")</code>
 
-users = Table('users', dbh,
+<code>users = Table('users', dbh,
     Column('user_id', Integer(), primary_key=True),
     Column('name', String(40)),
     Column('age', Integer()),
     Column('password', String(200))
-)
+)</code>
 
-users.create()
+<code>users.create()
 
 users.insert(   {'name': 'Mary', 'age':22, 'password':'guessit'},
                 {'name': 'Susan', 'age': 57},
@@ -23,9 +23,9 @@ users.insert(   {'name': 'Mary', 'age':22, 'password':'guessit'},
 users.select(users['name', 'age'], [users['name'],'Mary'])
 row = users.fetchone()
 
-print "My name is "+row[0]+"and I'm " row["age"]+" years old."
+print "My name is "+row[0]+"and I'm " row["age"]+" years old."</code>
 
-users.select(users['name', 'age', 'password'])
+<code>users.select(users['name', 'age', 'password'])
 rows = users.fetch()
 
 for r in rows:
@@ -35,8 +35,8 @@ SQL Object Relation:
 
 usermapper = Mapper(User, users)
 
-query = Query(User)
+query = Query(User)</code>
 
-mary = query.fetchone([users['name'], 'Mary'])
+<code>mary = query.fetchone([users['name'], 'Mary'])
 mary.age = mary.age+1
 query.save(mary)</code>
