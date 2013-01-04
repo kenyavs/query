@@ -1,7 +1,7 @@
 <h2>Query</h2>
 An SQL rendering engine...moving towards automated persistance of Python objects object realtional mapping.
 
-<h2>Usage Example</h2>
+<h2>Usage</h2>
 
 SQL rendering engine:
 
